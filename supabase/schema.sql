@@ -11,7 +11,7 @@ create table if not exists households(
   id uuid primary key default gen_random_uuid(),
   name text not null,
   invite_code text not null unique default upper(substr(replace(gen_random_uuid()::text,'-',''),1,12)),
-  invite_expires_at timestamptz not null default (now()+interval '48 hours'),
+  invite_expires_at timestamptz not null default (now()+interval '24 hours'),
   monthly_budget numeric(12,2) not null default 0,
   created_by uuid not null references auth.users(id),
   created_at timestamptz default now()
@@ -105,7 +105,7 @@ begin
  if auth.uid() is null then raise exception 'Not signed in'; end if;
  if exists(select 1 from household_members where user_id=auth.uid()) then raise exception 'User already belongs to a household'; end if;
  insert into households(name,created_by,invite_code,invite_expires_at)
- values(trim(p_name),auth.uid(),upper(substr(replace(gen_random_uuid()::text,'-',''),1,12)),now()+interval '48 hours') returning id into hid;
+ values(trim(p_name),auth.uid(),upper(substr(replace(gen_random_uuid()::text,'-',''),1,12)),now()+interval '24 hours') returning id into hid;
  insert into household_members(household_id,user_id,role) values(hid,auth.uid(),'owner');
  insert into categories(household_id,name,created_by) values
  (hid,'Housing',auth.uid()),(hid,'Groceries',auth.uid()),(hid,'Transport',auth.uid()),
@@ -125,7 +125,7 @@ begin
  for update;
  if hid is null then raise exception 'Invite code is invalid or expired'; end if;
  insert into household_members(household_id,user_id,role) values(hid,auth.uid(),'member');
- update households set invite_code=upper(substr(replace(gen_random_uuid()::text,'-',''),1,12)), invite_expires_at=now()+interval '48 hours' where id=hid;
+ update households set invite_code=upper(substr(replace(gen_random_uuid()::text,'-',''),1,12)), invite_expires_at=now()+interval '24 hours' where id=hid;
  return hid;
 end $$;
 
@@ -136,7 +136,7 @@ begin
  if auth.uid() is null then raise exception 'Not signed in'; end if;
  if not is_household_owner(p_household_id) then raise exception 'Only the household owner can create an invite'; end if;
  new_code:=upper(substr(replace(gen_random_uuid()::text,'-',''),1,12));
- update households set invite_code=new_code,invite_expires_at=now()+interval '48 hours' where id=p_household_id;
+ update households set invite_code=new_code,invite_expires_at=now()+interval '24 hours' where id=p_household_id;
  return new_code;
 end $$;
 
@@ -184,3 +184,55 @@ grant execute on function is_household_owner(uuid) to authenticated;
 alter publication supabase_realtime add table expenses;
 alter publication supabase_realtime add table income;
 alter publication supabase_realtime add table shopping_items;
+
+-- V8 additions: recurring bills and private receipt storage
+alter table expenses add column if not exists receipt_path text;
+
+create table if not exists recurring_bills(
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households(id) on delete cascade,
+  description text not null,
+  amount numeric(12,2) not null check(amount>=0),
+  category_id uuid references categories(id) on delete set null,
+  paid_by uuid references profiles(id),
+  frequency text not null check(frequency in('weekly','fortnightly','monthly','yearly')),
+  next_due_date date not null,
+  active boolean not null default true,
+  notes text,
+  created_by uuid references auth.users(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table expenses add column if not exists recurring_bill_id uuid references recurring_bills(id) on delete set null;
+alter table recurring_bills enable row level security;
+create policy "recurring bills manage" on recurring_bills for all using(is_household_member(household_id)) with check(is_household_member(household_id));
+
+create or replace function pay_recurring_bill(p_bill_id uuid, p_payment_method text default 'Card')
+returns uuid language plpgsql security definer set search_path=public as $$
+declare b recurring_bills%rowtype; expense_id uuid; new_due date;
+begin
+ if auth.uid() is null then raise exception 'Not signed in'; end if;
+ select * into b from recurring_bills where id=p_bill_id for update;
+ if b.id is null then raise exception 'Recurring bill not found'; end if;
+ if not is_household_member(b.household_id) then raise exception 'Not authorised'; end if;
+ if not b.active then raise exception 'Recurring bill is inactive'; end if;
+ insert into expenses(household_id,date,amount,description,category_id,paid_by,payment_method,notes,created_by,updated_by,recurring_bill_id)
+ values(b.household_id,b.next_due_date,b.amount,b.description,b.category_id,coalesce(b.paid_by,auth.uid()),p_payment_method,b.notes,auth.uid(),auth.uid(),b.id)
+ returning id into expense_id;
+ new_due:=case b.frequency when 'weekly' then b.next_due_date+7 when 'fortnightly' then b.next_due_date+14 when 'monthly' then (b.next_due_date+interval '1 month')::date when 'yearly' then (b.next_due_date+interval '1 year')::date end;
+ update recurring_bills set next_due_date=new_due,updated_at=now() where id=b.id;
+ return expense_id;
+end $$;
+grant execute on function pay_recurring_bill(uuid,text) to authenticated;
+
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
+values('receipts','receipts',false,5242880,array['image/jpeg','image/png','image/webp','application/pdf'])
+on conflict(id) do update set public=false,file_size_limit=excluded.file_size_limit,allowed_mime_types=excluded.allowed_mime_types;
+
+create policy "household receipt read" on storage.objects for select to authenticated using(bucket_id='receipts' and is_household_member(((storage.foldername(name))[1])::uuid));
+create policy "household receipt insert" on storage.objects for insert to authenticated with check(bucket_id='receipts' and is_household_member(((storage.foldername(name))[1])::uuid));
+create policy "household receipt update" on storage.objects for update to authenticated using(bucket_id='receipts' and is_household_member(((storage.foldername(name))[1])::uuid)) with check(bucket_id='receipts' and is_household_member(((storage.foldername(name))[1])::uuid));
+create policy "household receipt delete" on storage.objects for delete to authenticated using(bucket_id='receipts' and is_household_member(((storage.foldername(name))[1])::uuid));
+
+alter publication supabase_realtime add table recurring_bills;

@@ -1,79 +1,54 @@
-HOUSEHOLD FINANCE PWA - VERSION 2
+HOUSEHOLD FINANCE PWA - VERSION 8
 
-FEATURES
-- Separate logins for you and your partner
-- Shared household with invite code
-- Monthly income
-- Monthly expenses by category
-- Monthly savings = income - expenses
-- Savings rate
-- Shared realtime shopping list
-- Categories
-- Monthly household budget
-- Edit/delete income and expenses
-- Installable PWA
-- Supabase Row Level Security
-
-SETUP
-1. Create a new Supabase project.
-2. Open SQL Editor and run supabase/schema.sql.
-3. In Supabase Project Settings -> API copy:
-   - Project URL
-   - public/publishable anon key
-4. Put those two values into js/config.js.
-5. NEVER put a service_role or secret key in the frontend.
-6. In Supabase Authentication enable Email/Password.
-7. Recommended for production: enable email confirmation.
-8. Add your final GitHub Pages URL as an allowed site/redirect URL.
-9. Upload the CONTENTS of this folder to a GitHub repository, e.g. household-finance.
-10. Enable GitHub Pages from main / root.
-11. First user: create account and create household.
-12. Second user: create separate account and join with household invite code.
+NEW IN V8
+- Reports page with custom date range
+- Income / expense / savings report totals
+- Monthly performance report
+- Expense category percentages
+- Recurring bills with weekly, fortnightly, monthly or yearly frequency
+- Mark recurring bill as paid -> creates an expense and advances next due date
+- Private receipt storage for expenses (JPG, PNG, WebP or PDF, max 5 MB)
+- Expense and income CSV exports
+- Full household JSON backup export
 
 SECURITY
-- Financial records are stored in Supabase, not GitHub.
-- RLS policies restrict records to authenticated users in the same household.
-- Keep the GitHub repository free of secret/service-role keys.
-- Use HTTPS hosting.
-- Use strong passwords and email confirmation.
+- Receipts are stored in a PRIVATE Supabase Storage bucket named receipts.
+- Receipt paths use household-id/expense-id/file-name.
+- Storage RLS checks that the logged-in user belongs to that household.
+- The frontend uses only the Supabase publishable key.
+- Never put service_role, sb_secret, database passwords or other secrets in js/config.js.
 
-NEXT VERSION IDEAS
-- Recurring bills and recurring income
-- Receipt photo uploads
-- Category-specific budgets
-- Savings/investment transfers
-- CSV import/export
-- Activity/audit history
-- Push notifications
-- Android packaging with Capacitor / Play Store
+UPGRADING AN EXISTING V7 PROJECT
+1. In Supabase -> SQL Editor -> New query.
+2. Run the complete file:
+      supabase/migrate-v8-features.sql
+3. Do NOT rerun the full schema.sql on your existing database.
+4. Upload/replace these frontend files on your host:
+      index.html
+      css/style.css
+      js/app.js
+      service-worker.js
+5. Keep your existing js/config.js because it contains your working Supabase project URL and publishable key.
+6. Upload supabase/schema.sql and the migration files to GitHub only as project/source documentation.
+7. Refresh the website once before reopening an installed PWA.
 
+RECEIPTS
+- Files are private, not public URLs.
+- The app creates a temporary signed URL only when a household member taps Receipt/View.
+- Supported types: JPEG, PNG, WebP, PDF.
+- Maximum file size: 5 MB.
 
-VERSION 2
-- Complete visual redesign.
-- Supabase/database logic unchanged.
-- Service worker cache bumped to household-finance-v2.
+RECURRING BILLS
+- Recurring bills do not automatically create expenses in the background.
+- Tap Mark paid to create the expense safely and advance the due date.
+- This avoids accidental duplicate expenses and does not require a scheduled server job.
 
+REPORTS / EXPORTS
+- Reports accept any From / To date range.
+- Expenses CSV and Income CSV use the current Reports date range.
+- Full JSON backup exports all household categories, expenses, income, shopping items and recurring bills.
+- Receipt files themselves are not embedded in the JSON backup; receipt_path references are included with the expense records.
 
-VERSION 4 CHANGES
-- Delete expense/income/shopping items refreshes the current list immediately.
-- Current tab is remembered across refreshes.
-- Home dashboard adds Income vs Expenses comparison chart.
-- Home dashboard adds Expenses by Category donut chart with percentages.
-- Service worker/cache bumped to V4.
-
-
-VERSION 6 SECURITY UPDATE
-- Supabase JS is pinned to 2.118.0 instead of floating on any future v2 release.
-- Service-worker assets are consistently versioned as V6.
-- Household invite codes expire after 48 hours and rotate after a successful join.
-- Household owners can generate a fresh invite code at any time.
-- Household settings such as the monthly budget are owner-only.
-- Income, expenses, categories and shopping remain shared/editable by household members.
-
-IF YOU ALREADY RAN AN OLDER schema.sql:
-Run supabase/migrate-v6-hardening.sql ONCE in the Supabase SQL Editor.
-Do NOT rerun the full schema just to upgrade an existing database.
-
-
-V7 DATABASE FIX
-If V6 shows "function gen_random_bytes(integer) does not exist" when generating an invite, run supabase/migrate-v7-invite-generator-fix.sql in Supabase SQL Editor. This migration does not delete existing data.
+FRESH INSTALL
+- Run supabase/schema.sql on a new Supabase project.
+- Then configure js/config.js with the Project URL and publishable key.
