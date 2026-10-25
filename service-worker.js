@@ -1,4 +1,4 @@
-const CACHE="household-finance-v4";
+const CACHE="household-finance-v5";
 const CORE=["./","./index.html","./manifest.json?v=4","./css/style.css?v=4","./js/app.js?v=4"];
 self.addEventListener("install",event=>{self.skipWaiting();event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)));});
 self.addEventListener("activate",event=>{event.waitUntil((async()=>{for(const key of await caches.keys()){if(key!==CACHE)await caches.delete(key);}await self.clients.claim();})());});
