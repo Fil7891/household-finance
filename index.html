@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111827">
 <title>Household Finance</title>
-<link rel="manifest" href="manifest.json?v=4">
+<link rel="manifest" href="manifest.json?v=8">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png?v=5">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png?v=5">
 
-<link rel="stylesheet" href="css/style.css?v=7">
+<link rel="stylesheet" href="css/style.css?v=8">
 </head>
 <body>
 <header class="topbar">
@@ -53,6 +53,7 @@
       <button data-page="expenses">Expenses</button>
       <button data-page="income">Income</button>
       <button data-page="shopping">Shopping</button>
+      <button data-page="reports">Reports</button>
       <button data-page="more">More</button>
     </nav>
 
@@ -93,6 +94,11 @@
           <label>Paid by<select id="expensePaidBy"></select></label>
           <label>Payment method<select id="expensePaymentMethod"><option>Card</option><option>Cash</option><option>Bank transfer</option><option>Other</option></select></label>
           <label class="wide">Notes<textarea id="expenseNotes" rows="2"></textarea></label>
+          <label class="wide">Receipt
+            <input id="expenseReceipt" type="file" accept="image/jpeg,image/png,image/webp,application/pdf">
+            <span class="field-note">Optional. JPG, PNG, WebP or PDF, maximum 5 MB.</span>
+          </label>
+          <div id="currentReceipt" class="wide receipt-status hidden"></div>
           <div class="actions wide"><button>Save expense</button><button type="button" id="expenseCancel" class="secondary hidden">Cancel</button></div>
         </form>
       </section>
@@ -134,6 +140,26 @@
       <section class="card"><div id="shoppingList" class="list"></div></section>
     </section>
 
+
+    <section id="page-reports" class="page">
+      <section class="card">
+        <div class="section-head"><div><h2>Reports</h2><p class="muted">Review income, spending and savings across any date range.</p></div></div>
+        <form id="reportForm" class="report-filter">
+          <label>From<input id="reportFrom" type="date" required></label>
+          <label>To<input id="reportTo" type="date" required></label>
+          <button>Generate report</button>
+        </form>
+      </section>
+      <div class="summary-grid report-summary">
+        <article class="stat"><span>Income</span><strong id="reportIncome">$0.00</strong></article>
+        <article class="stat"><span>Expenses</span><strong id="reportExpenses">$0.00</strong></article>
+        <article class="stat"><span>Saved</span><strong id="reportSaved">$0.00</strong></article>
+        <article class="stat"><span>Savings rate</span><strong id="reportRate">0%</strong></article>
+      </div>
+      <section class="card"><div class="section-head"><div><h2>Monthly performance</h2><p class="muted">Income, expenses and net savings by month.</p></div></div><div id="reportMonthly" class="report-bars"></div></section>
+      <section class="card"><div class="section-head"><div><h2>Category breakdown</h2><p class="muted">Total and percentage of expenses in the selected period.</p></div></div><div id="reportCategories" class="list"></div></section>
+    </section>
+
     <section id="page-more" class="page">
       <section class="card">
         <h2>Household</h2>
@@ -148,6 +174,34 @@
         <form id="categoryForm" class="inline-form"><input id="categoryName" required placeholder="New category"><button>Add</button></form>
         <div id="categoryList" class="list"></div>
       </section>
+
+      <section class="card">
+        <div class="section-head"><div><h2>Recurring bills</h2><p class="muted">Track regular bills and add them to expenses when paid.</p></div></div>
+        <form id="recurringForm" class="form-grid">
+          <input type="hidden" id="recurringId">
+          <label>Description<input id="recurringDescription" required placeholder="Internet"></label>
+          <label>Amount<input id="recurringAmount" type="number" min="0" step="0.01" required></label>
+          <label>Category<select id="recurringCategory" required></select></label>
+          <label>Paid by<select id="recurringPaidBy"></select></label>
+          <label>Frequency<select id="recurringFrequency"><option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option><option value="monthly" selected>Monthly</option><option value="yearly">Yearly</option></select></label>
+          <label>Next due<input id="recurringNextDue" type="date" required></label>
+          <label class="wide">Notes<textarea id="recurringNotes" rows="2"></textarea></label>
+          <label class="check-row wide"><input id="recurringActive" type="checkbox" checked> Active</label>
+          <div class="actions wide"><button>Save recurring bill</button><button type="button" id="recurringCancel" class="secondary hidden">Cancel</button></div>
+        </form>
+        <div id="recurringList" class="list recurring-list"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head"><div><h2>Exports</h2><p class="muted">Download your household data for backup or analysis.</p></div></div>
+        <div class="export-grid">
+          <button type="button" id="exportExpensesBtn" class="secondary">Expenses CSV</button>
+          <button type="button" id="exportIncomeBtn" class="secondary">Income CSV</button>
+          <button type="button" id="exportJsonBtn" class="secondary">Full JSON backup</button>
+        </div>
+        <p class="field-note">CSV exports use the date range selected on the Reports page. JSON includes expenses, income, categories, shopping list and recurring bills.</p>
+      </section>
+
       <section class="card">
         <h2>Monthly budget</h2>
         <form id="budgetForm" class="inline-form"><input id="budgetAmount" type="number" min="0" step="0.01" placeholder="5000"><button>Save</button></form>
@@ -159,7 +213,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
-<script src="js/config.js?v=7"></script>
-<script src="js/app.js?v=7"></script>
+<script src="js/config.js?v=8"></script>
+<script src="js/app.js?v=8"></script>
 </body>
 </html>
