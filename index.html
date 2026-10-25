@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<title>Household Finance</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div><h1>Household Finance</h1><p id="householdName">Shared home budget</p></div>
+  <button id="logoutBtn" class="ghost hidden">Log out</button>
+</header>
+
+<main class="container">
+<section id="authView" class="card auth-card">
+  <h2>Sign in</h2>
+  <p class="muted">Use your own account. You and your partner can then join the same household.</p>
+  <form id="authForm" class="stack">
+    <label>Email<input id="authEmail" type="email" required></label>
+    <label>Password<input id="authPassword" type="password" minlength="6" required></label>
+    <div class="actions">
+      <button type="submit">Sign in</button>
+      <button type="button" id="signUpBtn" class="secondary">Create account</button>
+    </div>
+  </form>
+  <p id="authMessage" class="message"></p>
+</section>
+
+<section id="appView" class="hidden">
+  <section id="householdSetup" class="card hidden">
+    <h2>Set up your household</h2>
+    <div class="grid2">
+      <form id="createHouseholdForm" class="stack">
+        <label>Household name<input id="newHouseholdName" required placeholder="Our Home"></label>
+        <button>Create household</button>
+      </form>
+      <form id="joinHouseholdForm" class="stack">
+        <label>Invite code<input id="inviteCode" required placeholder="ABC12345"></label>
+        <button class="secondary">Join household</button>
+      </form>
+    </div>
+  </section>
+
+  <section id="mainApp" class="hidden">
+    <nav class="tabs">
+      <button data-page="dashboard" class="active">Home</button>
+      <button data-page="expenses">Expenses</button>
+      <button data-page="income">Income</button>
+      <button data-page="shopping">Shopping</button>
+      <button data-page="more">More</button>
+    </nav>
+
+    <section id="page-dashboard" class="page active">
+      <div class="toolbar"><label>Month<input id="dashboardMonth" type="month"></label></div>
+      <div class="summary-grid">
+        <article class="stat"><span>Income</span><strong id="sumIncome">$0.00</strong></article>
+        <article class="stat"><span>Expenses</span><strong id="sumExpenses">$0.00</strong></article>
+        <article class="stat"><span>Saved</span><strong id="sumSaved">$0.00</strong></article>
+        <article class="stat"><span>Savings rate</span><strong id="sumRate">0%</strong></article>
+      </div>
+      <section class="card"><div class="section-head"><h2>Spending by category</h2></div><div id="categorySummary" class="list"></div></section>
+      <section class="card"><div class="section-head"><h2>Recent activity</h2></div><div id="recentActivity" class="list"></div></section>
+    </section>
+
+    <section id="page-expenses" class="page">
+      <section class="card">
+        <h2>Add expense</h2>
+        <form id="expenseForm" class="form-grid">
+          <input type="hidden" id="expenseId">
+          <label>Date<input id="expenseDate" type="date" required></label>
+          <label>Amount<input id="expenseAmount" type="number" min="0" step="0.01" required></label>
+          <label>Description<input id="expenseDescription" required placeholder="Woolworths"></label>
+          <label>Category<select id="expenseCategory" required></select></label>
+          <label>Paid by<select id="expensePaidBy"></select></label>
+          <label>Payment method<select id="expensePaymentMethod"><option>Card</option><option>Cash</option><option>Bank transfer</option><option>Other</option></select></label>
+          <label class="wide">Notes<textarea id="expenseNotes" rows="2"></textarea></label>
+          <div class="actions wide"><button>Save expense</button><button type="button" id="expenseCancel" class="secondary hidden">Cancel</button></div>
+        </form>
+      </section>
+      <section class="card">
+        <div class="section-head"><h2>Expenses</h2><input id="expenseMonth" type="month"></div>
+        <div id="expenseList" class="list"></div>
+      </section>
+    </section>
+
+    <section id="page-income" class="page">
+      <section class="card">
+        <h2>Add income</h2>
+        <form id="incomeForm" class="form-grid">
+          <input type="hidden" id="incomeId">
+          <label>Date<input id="incomeDate" type="date" required></label>
+          <label>Amount<input id="incomeAmount" type="number" min="0" step="0.01" required></label>
+          <label>Source<input id="incomeSource" required placeholder="Salary"></label>
+          <label>Received by<select id="incomeReceivedBy"></select></label>
+          <label class="wide">Notes<textarea id="incomeNotes" rows="2"></textarea></label>
+          <div class="actions wide"><button>Save income</button><button type="button" id="incomeCancel" class="secondary hidden">Cancel</button></div>
+        </form>
+      </section>
+      <section class="card">
+        <div class="section-head"><h2>Income</h2><input id="incomeMonth" type="month"></div>
+        <div id="incomeList" class="list"></div>
+      </section>
+    </section>
+
+    <section id="page-shopping" class="page">
+      <section class="card">
+        <h2>Shared shopping list</h2>
+        <form id="shoppingForm" class="shopping-add">
+          <input id="shoppingItem" required placeholder="Milk">
+          <input id="shoppingQty" placeholder="Qty" value="1">
+          <select id="shoppingCategory"></select>
+          <button>Add</button>
+        </form>
+      </section>
+      <section class="card"><div id="shoppingList" class="list"></div></section>
+    </section>
+
+    <section id="page-more" class="page">
+      <section class="card">
+        <h2>Household</h2>
+        <div class="kv"><span>Invite code</span><strong id="householdInvite">—</strong></div>
+        <p class="muted">Share this code with your partner after they create an account.</p>
+        <div id="memberList" class="list"></div>
+      </section>
+      <section class="card">
+        <h2>Categories</h2>
+        <form id="categoryForm" class="inline-form"><input id="categoryName" required placeholder="New category"><button>Add</button></form>
+        <div id="categoryList" class="list"></div>
+      </section>
+      <section class="card">
+        <h2>Monthly budget</h2>
+        <form id="budgetForm" class="inline-form"><input id="budgetAmount" type="number" min="0" step="0.01" placeholder="5000"><button>Save</button></form>
+        <div class="kv"><span>Current budget</span><strong id="budgetDisplay">$0.00</strong></div>
+      </section>
+    </section>
+  </section>
+</section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
