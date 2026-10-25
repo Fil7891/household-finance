@@ -10,7 +10,7 @@ create table if not exists profiles(
 create table if not exists households(
   id uuid primary key default gen_random_uuid(),
   name text not null,
-  invite_code text not null unique default upper(substr(encode(gen_random_bytes(8),'hex'),1,8)),
+  invite_code text not null unique default upper(substr(replace(gen_random_uuid()::text,'-',''),1,12)),
   invite_expires_at timestamptz not null default (now()+interval '48 hours'),
   monthly_budget numeric(12,2) not null default 0,
   created_by uuid not null references auth.users(id),
@@ -105,7 +105,7 @@ begin
  if auth.uid() is null then raise exception 'Not signed in'; end if;
  if exists(select 1 from household_members where user_id=auth.uid()) then raise exception 'User already belongs to a household'; end if;
  insert into households(name,created_by,invite_code,invite_expires_at)
- values(trim(p_name),auth.uid(),upper(substr(encode(gen_random_bytes(8),'hex'),1,8)),now()+interval '48 hours') returning id into hid;
+ values(trim(p_name),auth.uid(),upper(substr(replace(gen_random_uuid()::text,'-',''),1,12)),now()+interval '48 hours') returning id into hid;
  insert into household_members(household_id,user_id,role) values(hid,auth.uid(),'owner');
  insert into categories(household_id,name,created_by) values
  (hid,'Housing',auth.uid()),(hid,'Groceries',auth.uid()),(hid,'Transport',auth.uid()),
@@ -125,7 +125,7 @@ begin
  for update;
  if hid is null then raise exception 'Invite code is invalid or expired'; end if;
  insert into household_members(household_id,user_id,role) values(hid,auth.uid(),'member');
- update households set invite_code=upper(substr(encode(gen_random_bytes(8),'hex'),1,8)), invite_expires_at=now()+interval '48 hours' where id=hid;
+ update households set invite_code=upper(substr(replace(gen_random_uuid()::text,'-',''),1,12)), invite_expires_at=now()+interval '48 hours' where id=hid;
  return hid;
 end $$;
 
@@ -135,7 +135,7 @@ declare new_code text;
 begin
  if auth.uid() is null then raise exception 'Not signed in'; end if;
  if not is_household_owner(p_household_id) then raise exception 'Only the household owner can create an invite'; end if;
- new_code:=upper(substr(encode(gen_random_bytes(8),'hex'),1,8));
+ new_code:=upper(substr(replace(gen_random_uuid()::text,'-',''),1,12));
  update households set invite_code=new_code,invite_expires_at=now()+interval '48 hours' where id=p_household_id;
  return new_code;
 end $$;

@@ -73,3 +73,7 @@ VERSION 6 SECURITY UPDATE
 IF YOU ALREADY RAN AN OLDER schema.sql:
 Run supabase/migrate-v6-hardening.sql ONCE in the Supabase SQL Editor.
 Do NOT rerun the full schema just to upgrade an existing database.
+
+
+V7 DATABASE FIX
+If V6 shows "function gen_random_bytes(integer) does not exist" when generating an invite, run supabase/migrate-v7-invite-generator-fix.sql in Supabase SQL Editor. This migration does not delete existing data.
