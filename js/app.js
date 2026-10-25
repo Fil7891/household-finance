@@ -96,5 +96,9 @@ function bind(){
   $("incomeCancel").onclick=()=>{$("incomeForm").reset();$("incomeId").value="";show("incomeCancel",false)};
   document.addEventListener("click",async e=>{const t=e.target;if(t.dataset.delexp&&confirm("Delete expense?"))await client.from("expenses").delete().eq("id",t.dataset.delexp);if(t.dataset.delinc&&confirm("Delete income?"))await client.from("income").delete().eq("id",t.dataset.delinc);if(t.dataset.delshop)await client.from("shopping_items").delete().eq("id",t.dataset.delshop);if(t.dataset.toggle)await client.from("shopping_items").update({completed:t.checked,completed_by:t.checked?user.id:null,completed_at:t.checked?new Date().toISOString():null}).eq("id",t.dataset.toggle);if(t.dataset.delcat&&confirm("Delete category?")){const{error}=await client.from("categories").delete().eq("id",t.dataset.delcat);if(error)alert("Category may be in use.");else{await loadCategories();renderAll()}}if(t.dataset.editexp){const x=JSON.parse(t.dataset.editexp);$("expenseId").value=x.id;$("expenseDate").value=x.date;$("expenseAmount").value=x.amount;$("expenseDescription").value=x.description;$("expenseCategory").value=x.category_id||"";$("expensePaidBy").value=x.paid_by||user.id;$("expensePaymentMethod").value=x.payment_method||"Card";$("expenseNotes").value=x.notes||"";show("expenseCancel");document.querySelector('[data-page="expenses"]').click()}if(t.dataset.editinc){const x=JSON.parse(t.dataset.editinc);$("incomeId").value=x.id;$("incomeDate").value=x.date;$("incomeAmount").value=x.amount;$("incomeSource").value=x.source;$("incomeReceivedBy").value=x.received_by||user.id;$("incomeNotes").value=x.notes||"";show("incomeCancel");document.querySelector('[data-page="income"]').click()}});
 }
-if("serviceWorker" in navigator)navigator.serviceWorker.register("service-worker.js");
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("service-worker.js?v=3",{updateViaCache:"none"})
+    .then(reg=>reg.update())
+    .catch(err=>console.warn("Service worker update failed",err));
+}
 boot();
