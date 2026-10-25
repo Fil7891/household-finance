@@ -1,6 +1,6 @@
 const cfg=window.APP_CONFIG;
 const client=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
-let user=null, household=null, members=[], categories=[], channel=null;
+let user=null, household=null, members=[], categories=[], channel=null, householdRole=null;
 const $=id=>document.getElementById(id);
 const money=v=>new Intl.NumberFormat(cfg.locale,{style:"currency",currency:cfg.currency}).format(Number(v||0));
 const today=()=>new Date().toISOString().slice(0,10);
@@ -29,14 +29,35 @@ async function boot(){
 function renderAuth(){show("authView");show("appView",false);show("logoutBtn",false);}
 async function loadApp(){
   show("authView",false);show("appView");show("logoutBtn");
-  const {data,error}=await client.from("household_members").select("household_id,role,households(id,name,invite_code,monthly_budget)").eq("user_id",user.id).maybeSingle();
+  const {data,error}=await client.from("household_members").select("household_id,role,households(id,name,monthly_budget)").eq("user_id",user.id).maybeSingle();
   if(error)return alert(error.message);
   if(!data){household=null;show("householdSetup");show("mainApp",false);return;}
-  household=data.households;show("householdSetup",false);show("mainApp");
-  $("householdName").textContent=household.name;$("householdInvite").textContent=household.invite_code;
+  household=data.households;householdRole=data.role;show("householdSetup",false);show("mainApp");
+  $("householdName").textContent=household.name;await renderHouseholdSecurity();
   $("budgetAmount").value=household.monthly_budget||0;$("budgetDisplay").textContent=money(household.monthly_budget||0);
   await Promise.all([loadMembers(),loadCategories()]);activatePage(localStorage.getItem("hfActivePage")||"dashboard",false);await renderAll();subscribe();
 }
+
+async function renderHouseholdSecurity(){
+  const owner=householdRole==="owner";
+  show("refreshInviteBtn",owner);
+  $("budgetAmount").disabled=!owner;
+  const saveBtn=$("budgetForm").querySelector("button");
+  saveBtn.disabled=!owner;
+  saveBtn.title=owner?"":"Only the household owner can change the monthly budget.";
+  if(!owner){$("householdInvite").textContent="Owner only";$("inviteExpiry").textContent="—";return;}
+  const {data,error}=await client.rpc("get_household_invite",{p_household_id:household.id});
+  if(error){$("householdInvite").textContent="Unavailable";$("inviteExpiry").textContent="—";return;}
+  const invite=Array.isArray(data)?data[0]:data;
+  $("householdInvite").textContent=invite?.invite_code||"—";
+  $("inviteExpiry").textContent=invite?.invite_expires_at?new Date(invite.invite_expires_at).toLocaleString(cfg.locale):"—";
+}
+async function reloadHousehold(){
+  const {data,error}=await client.from("household_members").select("role,households(id,name,monthly_budget)").eq("user_id",user.id).maybeSingle();
+  if(error)return alert(error.message);
+  if(data){householdRole=data.role;household=data.households;await renderHouseholdSecurity();$("budgetAmount").value=household.monthly_budget||0;$("budgetDisplay").textContent=money(household.monthly_budget||0);}
+}
+
 async function loadMembers(){
   const {data}=await client.from("household_members").select("user_id,role,profiles(display_name,email)").eq("household_id",household.id);
   members=data||[];
@@ -129,7 +150,8 @@ function bind(){
   $("incomeForm").onsubmit=async e=>{e.preventDefault();const id=$("incomeId").value,p={household_id:household.id,date:$("incomeDate").value,amount:Number($("incomeAmount").value),source:$("incomeSource").value.trim(),received_by:$("incomeReceivedBy").value||user.id,notes:$("incomeNotes").value.trim(),updated_by:user.id};const q=id?client.from("income").update(p).eq("id",id):client.from("income").insert({...p,created_by:user.id});const{error}=await q;if(error)return alert(error.message);$("incomeForm").reset();$("incomeId").value="";$("incomeDate").value=today();show("incomeCancel",false);renderAll()};
   $("shoppingForm").onsubmit=async e=>{e.preventDefault();const{error}=await client.from("shopping_items").insert({household_id:household.id,item:$("shoppingItem").value.trim(),quantity:$("shoppingQty").value.trim(),category_id:$("shoppingCategory").value||null,added_by:user.id});if(error)return alert(error.message);$("shoppingItem").value="";$("shoppingQty").value="1"};
   $("categoryForm").onsubmit=async e=>{e.preventDefault();const{error}=await client.from("categories").insert({household_id:household.id,name:$("categoryName").value.trim(),created_by:user.id});if(error)return alert(error.message);$("categoryName").value="";await loadCategories();renderAll()};
-  $("budgetForm").onsubmit=async e=>{e.preventDefault();const v=Number($("budgetAmount").value||0),{error}=await client.from("households").update({monthly_budget:v}).eq("id",household.id);if(error)return alert(error.message);household.monthly_budget=v;$("budgetDisplay").textContent=money(v)};
+  $("budgetForm").onsubmit=async e=>{e.preventDefault();if(householdRole!=="owner")return alert("Only the household owner can change the monthly budget.");const v=Number($("budgetAmount").value||0),{error}=await client.from("households").update({monthly_budget:v}).eq("id",household.id);if(error)return alert(error.message);household.monthly_budget=v;$("budgetDisplay").textContent=money(v)};
+  $("refreshInviteBtn").onclick=async()=>{if(householdRole!=="owner")return;const {data,error}=await client.rpc("rotate_household_invite",{p_household_id:household.id});if(error)return alert(error.message);await reloadHousehold();alert("New invite code created. The previous code is no longer valid.");};
   ["dashboardMonth","expenseMonth","incomeMonth"].forEach(id=>$(id).onchange=id==="dashboardMonth"?renderDashboard:id==="expenseMonth"?renderExpenses:renderIncome);
   $("expenseCancel").onclick=()=>{$("expenseForm").reset();$("expenseId").value="";show("expenseCancel",false)};
   $("incomeCancel").onclick=()=>{$("incomeForm").reset();$("incomeId").value="";show("incomeCancel",false)};

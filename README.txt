@@ -1,4 +1,4 @@
-HOUSEHOLD FINANCE PWA - VERSION 1
+HOUSEHOLD FINANCE PWA - VERSION 2
 
 FEATURES
 - Separate logins for you and your partner
@@ -46,3 +46,30 @@ NEXT VERSION IDEAS
 - Activity/audit history
 - Push notifications
 - Android packaging with Capacitor / Play Store
+
+
+VERSION 2
+- Complete visual redesign.
+- Supabase/database logic unchanged.
+- Service worker cache bumped to household-finance-v2.
+
+
+VERSION 4 CHANGES
+- Delete expense/income/shopping items refreshes the current list immediately.
+- Current tab is remembered across refreshes.
+- Home dashboard adds Income vs Expenses comparison chart.
+- Home dashboard adds Expenses by Category donut chart with percentages.
+- Service worker/cache bumped to V4.
+
+
+VERSION 6 SECURITY UPDATE
+- Supabase JS is pinned to 2.118.0 instead of floating on any future v2 release.
+- Service-worker assets are consistently versioned as V6.
+- Household invite codes expire after 48 hours and rotate after a successful join.
+- Household owners can generate a fresh invite code at any time.
+- Household settings such as the monthly budget are owner-only.
+- Income, expenses, categories and shopping remain shared/editable by household members.
+
+IF YOU ALREADY RAN AN OLDER schema.sql:
+Run supabase/migrate-v6-hardening.sql ONCE in the Supabase SQL Editor.
+Do NOT rerun the full schema just to upgrade an existing database.

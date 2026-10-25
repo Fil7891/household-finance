@@ -11,6 +11,7 @@ create table if not exists households(
   id uuid primary key default gen_random_uuid(),
   name text not null,
   invite_code text not null unique default upper(substr(encode(gen_random_bytes(8),'hex'),1,8)),
+  invite_expires_at timestamptz not null default (now()+interval '48 hours'),
   monthly_budget numeric(12,2) not null default 0,
   created_by uuid not null references auth.users(id),
   created_at timestamptz default now()
@@ -92,13 +93,19 @@ returns boolean language sql stable security definer set search_path=public as $
  select exists(select 1 from household_members where household_id=hid and user_id=auth.uid())
 $$;
 
+create or replace function is_household_owner(hid uuid)
+returns boolean language sql stable security definer set search_path=public as $$
+ select exists(select 1 from household_members where household_id=hid and user_id=auth.uid() and role='owner')
+$$;
+
 create or replace function create_household(p_name text)
 returns uuid language plpgsql security definer set search_path=public as $$
 declare hid uuid;
 begin
  if auth.uid() is null then raise exception 'Not signed in'; end if;
  if exists(select 1 from household_members where user_id=auth.uid()) then raise exception 'User already belongs to a household'; end if;
- insert into households(name,created_by) values(trim(p_name),auth.uid()) returning id into hid;
+ insert into households(name,created_by,invite_code,invite_expires_at)
+ values(trim(p_name),auth.uid(),upper(substr(encode(gen_random_bytes(8),'hex'),1,8)),now()+interval '48 hours') returning id into hid;
  insert into household_members(household_id,user_id,role) values(hid,auth.uid(),'owner');
  insert into categories(household_id,name,created_by) values
  (hid,'Housing',auth.uid()),(hid,'Groceries',auth.uid()),(hid,'Transport',auth.uid()),
@@ -113,10 +120,33 @@ declare hid uuid;
 begin
  if auth.uid() is null then raise exception 'Not signed in'; end if;
  if exists(select 1 from household_members where user_id=auth.uid()) then raise exception 'User already belongs to a household'; end if;
- select id into hid from households where upper(invite_code)=upper(trim(p_invite_code));
- if hid is null then raise exception 'Invite code not found'; end if;
+ select id into hid from households
+ where upper(invite_code)=upper(trim(p_invite_code)) and invite_expires_at>now()
+ for update;
+ if hid is null then raise exception 'Invite code is invalid or expired'; end if;
  insert into household_members(household_id,user_id,role) values(hid,auth.uid(),'member');
+ update households set invite_code=upper(substr(encode(gen_random_bytes(8),'hex'),1,8)), invite_expires_at=now()+interval '48 hours' where id=hid;
  return hid;
+end $$;
+
+create or replace function rotate_household_invite(p_household_id uuid)
+returns text language plpgsql security definer set search_path=public as $$
+declare new_code text;
+begin
+ if auth.uid() is null then raise exception 'Not signed in'; end if;
+ if not is_household_owner(p_household_id) then raise exception 'Only the household owner can create an invite'; end if;
+ new_code:=upper(substr(encode(gen_random_bytes(8),'hex'),1,8));
+ update households set invite_code=new_code,invite_expires_at=now()+interval '48 hours' where id=p_household_id;
+ return new_code;
+end $$;
+
+create or replace function get_household_invite(p_household_id uuid)
+returns table(invite_code text, invite_expires_at timestamptz)
+language plpgsql security definer set search_path=public as $$
+begin
+ if auth.uid() is null then raise exception 'Not signed in'; end if;
+ if not is_household_owner(p_household_id) then raise exception 'Only the household owner can view invite details'; end if;
+ return query select h.invite_code,h.invite_expires_at from households h where h.id=p_household_id;
 end $$;
 
 alter table profiles enable row level security;
@@ -132,19 +162,24 @@ create policy "profile read" on profiles for select using(id=auth.uid() or exist
  where a.user_id=auth.uid() and b.user_id=profiles.id
 ));
 create policy "profile update" on profiles for update using(id=auth.uid());
-
 create policy "household read" on households for select using(is_household_member(id));
-create policy "household update" on households for update using(is_household_member(id));
+create policy "household update" on households for update using(is_household_owner(id)) with check(is_household_owner(id));
 create policy "membership read" on household_members for select using(is_household_member(household_id));
-
 create policy "categories manage" on categories for all using(is_household_member(household_id)) with check(is_household_member(household_id));
 create policy "expenses manage" on expenses for all using(is_household_member(household_id)) with check(is_household_member(household_id));
 create policy "income manage" on income for all using(is_household_member(household_id)) with check(is_household_member(household_id));
 create policy "shopping manage" on shopping_items for all using(is_household_member(household_id)) with check(is_household_member(household_id));
 
+-- Do not expose invite columns through the browser-facing table API.
+revoke select on households from authenticated;
+grant select(id,name,monthly_budget,created_by,created_at) on households to authenticated;
+
 grant execute on function create_household(text) to authenticated;
 grant execute on function join_household(text) to authenticated;
+grant execute on function rotate_household_invite(uuid) to authenticated;
+grant execute on function get_household_invite(uuid) to authenticated;
 grant execute on function is_household_member(uuid) to authenticated;
+grant execute on function is_household_owner(uuid) to authenticated;
 
 alter publication supabase_realtime add table expenses;
 alter publication supabase_realtime add table income;
