@@ -8,6 +8,14 @@ const monthKey=()=>new Date().toISOString().slice(0,7);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 const show=(id,on=true)=>$(id).classList.toggle("hidden",!on);
 function bounds(m){const[y,mo]=m.split("-").map(Number);return{start:`${y}-${String(mo).padStart(2,"0")}-01`,end:new Date(y,mo,0).toISOString().slice(0,10)}}
+const CHART_COLORS=["#1f6b4f","#b98c4a","#4e7c97","#9a6c82","#6f8d5a","#c16e4b","#7a72a8","#4b8b86","#b46f73","#8b745d"];
+function activatePage(name,remember=true){
+  const target=document.querySelector(`.tabs button[data-page="${name}"]`);
+  if(!target) name="dashboard";
+  document.querySelectorAll(".tabs button").forEach(x=>x.classList.toggle("active",x.dataset.page===name));
+  document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id===`page-${name}`));
+  if(remember) localStorage.setItem("hfActivePage",name);
+}
 
 async function boot(){
   ["dashboardMonth","expenseMonth","incomeMonth"].forEach(id=>$(id).value=monthKey());
@@ -27,7 +35,7 @@ async function loadApp(){
   household=data.households;show("householdSetup",false);show("mainApp");
   $("householdName").textContent=household.name;$("householdInvite").textContent=household.invite_code;
   $("budgetAmount").value=household.monthly_budget||0;$("budgetDisplay").textContent=money(household.monthly_budget||0);
-  await Promise.all([loadMembers(),loadCategories()]);await renderAll();subscribe();
+  await Promise.all([loadMembers(),loadCategories()]);activatePage(localStorage.getItem("hfActivePage")||"dashboard",false);await renderAll();subscribe();
 }
 async function loadMembers(){
   const {data}=await client.from("household_members").select("user_id,role,profiles(display_name,email)").eq("household_id",household.id);
@@ -53,10 +61,41 @@ async function renderDashboard(){
   const inc=(i||[]).reduce((a,x)=>a+Number(x.amount),0), exp=(e||[]).reduce((a,x)=>a+Number(x.amount),0), saved=inc-exp;
   $("sumIncome").textContent=money(inc);$("sumExpenses").textContent=money(exp);$("sumSaved").textContent=money(saved);$("sumRate").textContent=`${(inc?saved/inc*100:0).toFixed(1)}%`;
   const by={};(e||[]).forEach(x=>{const n=x.categories?.name||"Other";by[n]=(by[n]||0)+Number(x.amount)});
-  $("categorySummary").innerHTML=Object.entries(by).sort((a,b)=>b[1]-a[1]).map(([n,v])=>`<div class="kv"><span>${esc(n)}</span><strong>${money(v)}</strong></div>`).join("")||'<p class="muted">No expenses this month.</p>';
+  const categoryEntries=Object.entries(by).sort((a,b)=>b[1]-a[1]);
+  $("categorySummary").innerHTML=categoryEntries.map(([n,v])=>`<div class="kv"><span>${esc(n)}</span><strong>${money(v)}</strong></div>`).join("")||'<p class="muted">No expenses this month.</p>';
+  renderIncomeExpenseChart(inc,exp,saved);
+  renderCategoryChart(categoryEntries,exp);
   const activity=[...(i||[]).map(x=>({d:x.date,l:x.source,a:Number(x.amount),t:"Income"})),...(e||[]).map(x=>({d:x.date,l:x.description,a:-Number(x.amount),t:"Expense"}))].sort((a,b)=>b.d.localeCompare(a.d)).slice(0,8);
   $("recentActivity").innerHTML=activity.map(x=>`<div class="row"><div><strong>${esc(x.l)}</strong><span>${x.d} · ${x.t}</span></div><strong class="${x.a<0?"negative":"positive"}">${x.a<0?"-":""}${money(Math.abs(x.a))}</strong></div>`).join("")||'<p class="muted">No activity yet.</p>';
 }
+function renderIncomeExpenseChart(income,expenses,saved){
+  const max=Math.max(income,expenses,1);
+  const incomePct=Math.max(0,Math.min(100,income/max*100));
+  const expensePct=Math.max(0,Math.min(100,expenses/max*100));
+  $("incomeExpenseChart").innerHTML=`
+    <div class="compare-row income"><div class="compare-meta"><span class="compare-label">Income</span><strong class="compare-value">${money(income)}</strong></div><div class="compare-track"><div class="compare-fill" style="width:${incomePct.toFixed(1)}%"></div></div></div>
+    <div class="compare-row expenses"><div class="compare-meta"><span class="compare-label">Expenses</span><strong class="compare-value">${money(expenses)}</strong></div><div class="compare-track"><div class="compare-fill" style="width:${expensePct.toFixed(1)}%"></div></div></div>
+    <div class="comparison-footer"><span>Net for month</span><strong class="${saved<0?"negative":"positive"}">${saved<0?"-":""}${money(Math.abs(saved))}</strong></div>`;
+}
+function renderCategoryChart(entries,total){
+  $("donutTotal").textContent=money(total);
+  if(!entries.length||total<=0){
+    $("categoryDonut").style.background="#edf2ef";
+    $("categoryLegend").innerHTML='<div class="chart-empty">No category spending yet.</div>';
+    return;
+  }
+  let cursor=0;
+  const stops=[];
+  $("categoryLegend").innerHTML=entries.map(([name,value],idx)=>{
+    const pct=value/total*100;
+    const color=CHART_COLORS[idx%CHART_COLORS.length];
+    const start=cursor;cursor+=pct;
+    stops.push(`${color} ${start.toFixed(2)}% ${cursor.toFixed(2)}%`);
+    return `<div class="legend-row"><span class="legend-dot" style="--legend-color:${color}"></span><span class="legend-name">${esc(name)}</span><span class="legend-percent">${pct.toFixed(1)}%</span></div>`;
+  }).join("");
+  $("categoryDonut").style.background=`conic-gradient(${stops.join(",")})`;
+}
+
 async function renderExpenses(){
   const {start,end}=bounds($("expenseMonth").value);
   const {data}=await client.from("expenses").select("*,categories(name)").eq("household_id",household.id).gte("date",start).lte("date",end).order("date",{ascending:false});
@@ -80,7 +119,7 @@ function subscribe(){
     .subscribe();
 }
 function bind(){
-  document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));b.classList.add("active");$(`page-${b.dataset.page}`).classList.add("active");});
+  document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>activatePage(b.dataset.page));
   $("authForm").onsubmit=async e=>{e.preventDefault();const{error}=await client.auth.signInWithPassword({email:$("authEmail").value,password:$("authPassword").value});$("authMessage").textContent=error?error.message:"Signed in."};
   $("signUpBtn").onclick=async()=>{const{error}=await client.auth.signUp({email:$("authEmail").value,password:$("authPassword").value});$("authMessage").textContent=error?error.message:"Account created. Check your email if confirmation is enabled."};
   $("logoutBtn").onclick=()=>client.auth.signOut();
@@ -94,10 +133,42 @@ function bind(){
   ["dashboardMonth","expenseMonth","incomeMonth"].forEach(id=>$(id).onchange=id==="dashboardMonth"?renderDashboard:id==="expenseMonth"?renderExpenses:renderIncome);
   $("expenseCancel").onclick=()=>{$("expenseForm").reset();$("expenseId").value="";show("expenseCancel",false)};
   $("incomeCancel").onclick=()=>{$("incomeForm").reset();$("incomeId").value="";show("incomeCancel",false)};
-  document.addEventListener("click",async e=>{const t=e.target;if(t.dataset.delexp&&confirm("Delete expense?"))await client.from("expenses").delete().eq("id",t.dataset.delexp);if(t.dataset.delinc&&confirm("Delete income?"))await client.from("income").delete().eq("id",t.dataset.delinc);if(t.dataset.delshop)await client.from("shopping_items").delete().eq("id",t.dataset.delshop);if(t.dataset.toggle)await client.from("shopping_items").update({completed:t.checked,completed_by:t.checked?user.id:null,completed_at:t.checked?new Date().toISOString():null}).eq("id",t.dataset.toggle);if(t.dataset.delcat&&confirm("Delete category?")){const{error}=await client.from("categories").delete().eq("id",t.dataset.delcat);if(error)alert("Category may be in use.");else{await loadCategories();renderAll()}}if(t.dataset.editexp){const x=JSON.parse(t.dataset.editexp);$("expenseId").value=x.id;$("expenseDate").value=x.date;$("expenseAmount").value=x.amount;$("expenseDescription").value=x.description;$("expenseCategory").value=x.category_id||"";$("expensePaidBy").value=x.paid_by||user.id;$("expensePaymentMethod").value=x.payment_method||"Card";$("expenseNotes").value=x.notes||"";show("expenseCancel");document.querySelector('[data-page="expenses"]').click()}if(t.dataset.editinc){const x=JSON.parse(t.dataset.editinc);$("incomeId").value=x.id;$("incomeDate").value=x.date;$("incomeAmount").value=x.amount;$("incomeSource").value=x.source;$("incomeReceivedBy").value=x.received_by||user.id;$("incomeNotes").value=x.notes||"";show("incomeCancel");document.querySelector('[data-page="income"]').click()}});
+  document.addEventListener("click",async e=>{
+    const t=e.target;
+    if(t.dataset.delexp&&confirm("Delete expense?")){
+      const {error}=await client.from("expenses").delete().eq("id",t.dataset.delexp);
+      if(error)return alert(error.message);
+      await Promise.all([renderExpenses(),renderDashboard()]);
+    }
+    if(t.dataset.delinc&&confirm("Delete income?")){
+      const {error}=await client.from("income").delete().eq("id",t.dataset.delinc);
+      if(error)return alert(error.message);
+      await Promise.all([renderIncome(),renderDashboard()]);
+    }
+    if(t.dataset.delshop){
+      const {error}=await client.from("shopping_items").delete().eq("id",t.dataset.delshop);
+      if(error)return alert(error.message);
+      await renderShopping();
+    }
+    if(t.dataset.toggle){
+      const {error}=await client.from("shopping_items").update({completed:t.checked,completed_by:t.checked?user.id:null,completed_at:t.checked?new Date().toISOString():null}).eq("id",t.dataset.toggle);
+      if(error){t.checked=!t.checked;return alert(error.message);}
+      await renderShopping();
+    }
+    if(t.dataset.delcat&&confirm("Delete category?")){
+      const{error}=await client.from("categories").delete().eq("id",t.dataset.delcat);
+      if(error)alert("Category may be in use.");else{await loadCategories();await renderAll();}
+    }
+    if(t.dataset.editexp){
+      const x=JSON.parse(t.dataset.editexp);$("expenseId").value=x.id;$("expenseDate").value=x.date;$("expenseAmount").value=x.amount;$("expenseDescription").value=x.description;$("expenseCategory").value=x.category_id||"";$("expensePaidBy").value=x.paid_by||user.id;$("expensePaymentMethod").value=x.payment_method||"Card";$("expenseNotes").value=x.notes||"";show("expenseCancel");activatePage("expenses");
+    }
+    if(t.dataset.editinc){
+      const x=JSON.parse(t.dataset.editinc);$("incomeId").value=x.id;$("incomeDate").value=x.date;$("incomeAmount").value=x.amount;$("incomeSource").value=x.source;$("incomeReceivedBy").value=x.received_by||user.id;$("incomeNotes").value=x.notes||"";show("incomeCancel");activatePage("income");
+    }
+  });
 }
 if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("service-worker.js?v=3",{updateViaCache:"none"})
+  navigator.serviceWorker.register("service-worker.js?v=4",{updateViaCache:"none"})
     .then(reg=>reg.update())
     .catch(err=>console.warn("Service worker update failed",err));
 }

@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111827">
 <title>Household Finance</title>
-<link rel="manifest" href="manifest.json?v=3">
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="manifest" href="manifest.json?v=4">
+<link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
 <header class="topbar">
@@ -60,6 +60,19 @@
         <article class="stat"><span>Expenses</span><strong id="sumExpenses">$0.00</strong></article>
         <article class="stat"><span>Saved</span><strong id="sumSaved">$0.00</strong></article>
         <article class="stat"><span>Savings rate</span><strong id="sumRate">0%</strong></article>
+      </div>
+      <div class="charts-grid">
+        <section class="card chart-card">
+          <div class="section-head chart-head"><div><h2>Income vs expenses</h2><p class="muted">Monthly cash flow at a glance</p></div></div>
+          <div id="incomeExpenseChart" class="comparison-chart" aria-label="Income versus expenses chart"></div>
+        </section>
+        <section class="card chart-card">
+          <div class="section-head chart-head"><div><h2>Expenses by category</h2><p class="muted">Where this month's spending went</p></div></div>
+          <div class="category-chart-wrap">
+            <div id="categoryDonut" class="donut-chart" role="img" aria-label="Expense category percentage chart"><div class="donut-center"><strong id="donutTotal">$0.00</strong><span>Total</span></div></div>
+            <div id="categoryLegend" class="category-legend"></div>
+          </div>
+        </section>
       </div>
       <section class="card"><div class="section-head"><h2>Spending by category</h2></div><div id="categorySummary" class="list"></div></section>
       <section class="card"><div class="section-head"><h2>Recent activity</h2></div><div id="recentActivity" class="list"></div></section>
@@ -141,7 +154,7 @@
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="js/config.js?v=3"></script>
-<script src="js/app.js?v=3"></script>
+<script src="js/config.js?v=4"></script>
+<script src="js/app.js?v=4"></script>
 </body>
 </html>
