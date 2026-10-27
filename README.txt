@@ -52,3 +52,9 @@ REPORTS / EXPORTS
 FRESH INSTALL
 - Run supabase/schema.sql on a new Supabase project.
 - Then configure js/config.js with the Project URL and publishable key.
+
+
+V9 MEMBER SELECTOR FIX
+----------------------
+Run supabase/migrate-v9-member-selector-fix.sql once on an existing Supabase project.
+This adds a secure RPC that returns all members of the signed-in user's household for the Paid by / Received by / Recurring bill selectors.

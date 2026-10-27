@@ -63,11 +63,31 @@ async function reloadHousehold(){
 }
 
 async function loadMembers(){
-  const {data}=await client.from("household_members").select("user_id,role,profiles(display_name,email)").eq("household_id",household.id);
-  members=data||[];
-  const opts=members.map(m=>`<option value="${m.user_id}">${esc(m.profiles?.display_name||m.profiles?.email||"Member")}</option>`).join("");
-  $("expensePaidBy").innerHTML=$("incomeReceivedBy").innerHTML=$("recurringPaidBy").innerHTML=opts;
-  $("memberList").innerHTML=members.map(m=>`<div class="row"><div><strong>${esc(m.profiles?.display_name||m.profiles?.email)}</strong><span>${esc(m.role)}</span></div></div>`).join("");
+  const {data,error}=await client.rpc("get_household_members",{p_household_id:household.id});
+  if(error){
+    console.error("Could not load household members",error);
+    alert(`Could not load household members: ${error.message}`);
+    members=[];
+  }else{
+    members=data||[];
+  }
+
+  const opts=members.map(m=>{
+    const label=m.display_name||m.email||"Household member";
+    return `<option value="${m.user_id}">${esc(label)}</option>`;
+  }).join("");
+
+  for(const id of ["expensePaidBy","incomeReceivedBy","recurringPaidBy"]){
+    const el=$(id);
+    if(!el) continue;
+    el.innerHTML=opts||'<option value="">No household members found</option>';
+    el.disabled=!members.length;
+    if(members.some(m=>m.user_id===user.id)) el.value=user.id;
+  }
+
+  $("memberList").innerHTML=members.length
+    ? members.map(m=>`<div class="row"><div><strong>${esc(m.display_name||m.email||"Household member")}</strong><span>${esc(m.role)}</span></div></div>`).join("")
+    : '<p class="muted">No household members found.</p>';
 }
 async function loadCategories(){
   const {data}=await client.from("categories").select("*").eq("household_id",household.id).order("name");
