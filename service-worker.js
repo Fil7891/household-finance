@@ -1,4 +1,4 @@
-const CACHE="household-finance-v9";
+const CACHE="household-finance-v10";
 const CORE=["./","./index.html","./manifest.json?v=9","./css/style.css?v=9","./js/config.js?v=9","./js/app.js?v=9","./icons/icon-180.png","./icons/icon-192.png","./icons/icon-512.png"];
 self.addEventListener("install",event=>{self.skipWaiting();event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(CORE)));});
 self.addEventListener("activate",event=>{event.waitUntil((async()=>{for(const key of await caches.keys()){if(key!==CACHE)await caches.delete(key);}await self.clients.claim();})());});

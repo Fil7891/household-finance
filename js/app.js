@@ -3,11 +3,35 @@ const client=window.supabase.createClient(cfg.supabaseUrl,cfg.supabaseAnonKey);
 let user=null, household=null, members=[], categories=[], channel=null, householdRole=null;
 const $=id=>document.getElementById(id);
 const money=v=>new Intl.NumberFormat(cfg.locale,{style:"currency",currency:cfg.currency}).format(Number(v||0));
-const today=()=>new Date().toISOString().slice(0,10);
-const monthKey=()=>new Date().toISOString().slice(0,7);
+function localDateParts(date = new Date()) {
+  return {
+    year: date.getFullYear(),
+    month: String(date.getMonth() + 1).padStart(2, "0"),
+    day: String(date.getDate()).padStart(2, "0")
+  };
+}
+
+const today = () => {
+  const { year, month, day } = localDateParts();
+  return `${year}-${month}-${day}`;
+};
+
+const monthKey = () => {
+  const { year, month } = localDateParts();
+  return `${year}-${month}`;
+};
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
 const show=(id,on=true)=>$(id).classList.toggle("hidden",!on);
-function bounds(m){const[y,mo]=m.split("-").map(Number);return{start:`${y}-${String(mo).padStart(2,"0")}-01`,end:new Date(y,mo,0).toISOString().slice(0,10)}}
+function bounds(m) {
+  const [year, month] = m.split("-").map(Number);
+
+  const lastDay = new Date(year, month, 0).getDate();
+
+  return {
+    start: `${year}-${String(month).padStart(2, "0")}-01`,
+    end: `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`
+  };
+}
 const CHART_COLORS=["#1f6b4f","#b98c4a","#4e7c97","#9a6c82","#6f8d5a","#c16e4b","#7a72a8","#4b8b86","#b46f73","#8b745d"];
 function activatePage(name,remember=true){
   const target=document.querySelector(`.tabs button[data-page="${name}"]`);
@@ -143,7 +167,19 @@ function renderCategoryChart(entries,total){
 
 async function renderExpenses(){
   const {start,end}=bounds($("expenseMonth").value);
-  const {data}=await client.from("expenses").select("*,categories(name)").eq("household_id",household.id).gte("date",start).lte("date",end).order("date",{ascending:false});
+  const { data, error } = await client
+  .from("expenses")
+  .select("*,categories(name)")
+  .eq("household_id", household.id)
+  .gte("date", start)
+  .lte("date", end)
+  .order("date", { ascending: false });
+
+if (error) {
+  console.error("Expense load failed:", error);
+  alert(`Could not load expenses: ${error.message}`);
+  return;
+}
   $("expenseList").innerHTML=(data||[]).map(x=>`<div class="row"><div><strong>${esc(x.description)}</strong><span>${x.date} · ${esc(x.categories?.name||"Other")}${x.receipt_path?' · Receipt attached':''}</span></div><div class="row-actions"><strong>${money(x.amount)}</strong>${x.receipt_path?`<button class="small secondary" data-viewreceipt="${esc(x.receipt_path)}">Receipt</button>`:''}<button class="small" data-editexp='${JSON.stringify(x).replace(/'/g,"&#39;")}'>Edit</button><button class="danger small" data-delexp="${x.id}" data-receipt="${esc(x.receipt_path||'')}">Delete</button></div></div>`).join("")||'<p class="muted">No expenses this month.</p>';
 }
 async function renderIncome(){
